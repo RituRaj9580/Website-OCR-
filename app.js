@@ -1,5 +1,12 @@
 // ==========================================
-//  INIT: POPULATE QUALITY OPTIONS
+//  CONFIG: API SETTINGS
+// ==========================================
+const apiKey = '69902edf9746ebaf72438601'; // Your Key
+// 👇 REPLACE THIS HOST if you subscribed to a different service on RapidAPI
+const apiHost = 'social-downloader-go.p.rapidapi.com'; 
+
+// ==========================================
+//  INIT: POPULATE OPTIONS
 // ==========================================
 function updateQualityOptions() {
     const format = document.getElementById('media-format').value;
@@ -9,17 +16,13 @@ function updateQualityOptions() {
     let options = [];
     if (format === 'video') {
         options = [
-            { val: '4k', text: '4K Ultra HD (2160p)' },
-            { val: '1080p', text: 'Full HD (1080p)' },
-            { val: '720p', text: 'HD (720p)' },
-            { val: '480p', text: 'Standard (480p)' },
-            { val: '360p', text: 'Data Saver (360p)' }
+            { val: '720', text: 'Best Available (Auto)' }, // Most APIs auto-select best
+            { val: '480', text: 'Standard (480p)' },
+            { val: '360', text: 'Data Saver (360p)' }
         ];
     } else {
         options = [
-            { val: '320kbps', text: 'High Quality (320kbps)' },
-            { val: '192kbps', text: 'Standard (192kbps)' },
-            { val: '128kbps', text: 'Low (128kbps)' }
+            { val: 'best', text: 'Best Audio (Auto)' }
         ];
     }
 
@@ -34,7 +37,6 @@ function updateQualityOptions() {
 window.onload = function() {
     updateQualityOptions();
 };
-
 
 // ==========================================
 //  LOGIC 1: IMAGE TO TEXT (OCR)
@@ -89,21 +91,19 @@ async function processImage() {
     }
 }
 
-
 // ==========================================
-//  LOGIC 2: A4 PDF GENERATION
+//  LOGIC 2: PDF GENERATION
 // ==========================================
 function generateDocument() {
     const text = document.getElementById('detected-text').value;
 
     if (!text.trim()) {
-        alert("No text to save! Please extract text first.");
+        alert("No text to save!");
         return;
     }
 
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
-
     doc.setFont("helvetica", "normal");
     doc.setFontSize(12);
 
@@ -114,38 +114,49 @@ function generateDocument() {
     doc.save("extracted_document.pdf");
 }
 
-
 // ==========================================
-//  LOGIC 3: FIXED MEDIA DOWNLOADER
+//  LOGIC 3: UNIVERSAL DOWNLOADER (Smart Engine)
 // ==========================================
 
-// Helper function to FORCE download instead of playing
-async function forceDownload(url, filename) {
+// Helper: Tries to save file to disk (In-Built feel)
+async function downloadInternal(url, filename) {
+    const resultDiv = document.getElementById('download-result');
+    const dlBtn = document.getElementById('dl-action-btn');
+
+    if(dlBtn) {
+        dlBtn.innerText = "Downloading to Device...";
+        dlBtn.disabled = true;
+    }
+
     try {
         const response = await fetch(url);
-        if (!response.ok) throw new Error("Network response was not ok");
+        if (!response.ok) throw new Error("Stream Blocked");
         
-        // Convert the file to a "Blob" (Binary Object)
         const blob = await response.blob();
+        const blobUrl = window.URL.createObjectURL(blob);
         
-        // Create a temporary invisible link to trigger the "Save As" dialog
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.download = filename;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        
-        return true;
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(blobUrl);
+
+        if(dlBtn) {
+            dlBtn.innerText = "✔ Saved to Gallery/Downloads";
+            dlBtn.style.background = "#2ecc71";
+        }
+
     } catch (error) {
-        console.error("Download failed:", error);
-        // Fallback: Just open the link if the force download fails (e.g. CORS error)
+        console.warn("Direct download blocked (CORS). Opening native downloader.");
+        // Fallback: Use browser's built-in download manager
         window.open(url, '_blank');
-        return false;
+        if(dlBtn) dlBtn.innerText = "Opening Download...";
     }
 }
 
-function processDownload() {
+async function processDownload() {
     const url = document.getElementById('video-url').value;
     const format = document.getElementById('media-format').value;
     const resultDiv = document.getElementById('download-result');
@@ -155,59 +166,70 @@ function processDownload() {
         return;
     }
 
-    // UI: Show loading
+    // UI Reset
     resultDiv.style.display = 'block';
-    resultDiv.innerHTML = `<p style="color:#666; text-align:center;">Analyzing link...</p>`;
+    resultDiv.innerHTML = `
+        <div style="text-align:center; padding:20px;">
+            <div style="margin-bottom:10px;">🔄</div>
+            <p style="color:var(--primary); font-weight:600;">Processing Request...</p>
+            <p style="font-size:0.8rem; opacity:0.7;">Analysing: ${url.substring(0, 30)}...</p>
+        </div>
+    `;
 
-    setTimeout(() => {
-        // 1. Check if it's a Direct File (mp4, mp3, etc)
-        const isDirectFile = url.match(/\.(mp4|webm|ogg|mov|mp3|wav)$/i);
-        
-        // 2. Check if it's YouTube/Social
-        const isSocial = url.includes("youtube.com") || url.includes("youtu.be") || url.includes("instagram.com") || url.includes("facebook.com");
+    try {
+        let finalDownloadLink = '';
 
-        if (isDirectFile) {
-            // == METHOD A: DIRECT DOWNLOAD ==
-            // We use the 'onclick' to trigger our special forceDownload function
-            const fileName = `downloaded_media.${format === 'video' ? 'mp4' : 'mp3'}`;
+        // STRATEGY 1: Check if it is ALREADY a direct file
+        if (url.match(/\.(mp4|mp3|wav|mov)$/i)) {
+            finalDownloadLink = url;
+        } 
+        // STRATEGY 2: Use API for Social Media
+        else {
+            const response = await fetch(`https://${apiHost}/check?url=${encodeURIComponent(url)}`, {
+                method: 'GET',
+                headers: {
+                    'X-RapidAPI-Key': apiKey,
+                    'X-RapidAPI-Host': apiHost
+                }
+            });
+
+            if (!response.ok) throw new Error("API Error: Check Key or Host.");
             
-            resultDiv.innerHTML = `
-                <div style="text-align:center;">
-                    <p style="color: var(--success); font-weight:bold; margin-bottom:10px;">✔ File Ready!</p>
-                    <button id="real-dl-btn" class="btn-success" style="width: auto; padding: 12px 30px;">
-                        Save to Device 
-                    </button>
-                    <p style="font-size:0.8rem; margin-top:10px; color:#666;">Format: ${format.toUpperCase()}</p>
-                </div>
-            `;
+            const data = await response.json();
             
-            // Attach the click event to the new button
-            document.getElementById('real-dl-btn').onclick = function() {
-                this.innerText = "Downloading...";
-                forceDownload(url, fileName);
-            };
-
-        } else if (isSocial) {
-            // == METHOD B: SOCIAL MEDIA ==
-            // Redirect to a service that can handle encryption
-            resultDiv.innerHTML = `
-                <div style="background: rgba(255,255,255,0.7); padding: 20px; border-radius: 12px; border: 1px solid #eee; text-align:center;">
-                    <h3 style="color: var(--primary); font-size: 1.1rem;">Social Media Detected</h3>
-                    <p style="font-size: 0.9rem; margin-bottom: 15px;">Browsers cannot directly download YouTube/Instagram links without a server.</p>
-                    
-                    <a href="https://ssyoutube.com/" target="_blank" class="btn-success" style="text-decoration: none; display: inline-block; padding: 12px 20px; color: white; border-radius: 10px;">
-                        Use External Downloader
-                    </a>
-                </div>
-            `;
-        } else {
-            // == METHOD C: UNKNOWN LINK ==
-            resultDiv.innerHTML = `
-                <div style="text-align:center;">
-                    <p>Link type unknown. Trying direct access...</p>
-                    <a href="${url}" target="_blank" download>Open Link</a>
-                </div>
-            `;
+            // Try to find the link in common API structures
+            finalDownloadLink = data.link || data.url || data.video_url || (data.data ? data.data[0].url : null);
+            
+            if (!finalDownloadLink) throw new Error("No download link found in API response.");
         }
-    }, 1000);
+
+        // Generate Filename
+        const filename = `media_download_${Date.now()}.${format === 'video' ? 'mp4' : 'mp3'}`;
+
+        // Show "Save" Button
+        resultDiv.innerHTML = `
+            <div style="text-align:center; animation: fadeIn 0.5s;">
+                <p style="color: #2ecc71; font-weight:bold; margin-bottom:15px; font-size:1.1rem;">✔ Media Unlocked</p>
+                <button id="dl-action-btn" class="btn-success">
+                    Save to Device
+                </button>
+                <p style="font-size:0.75rem; color:#666; margin-top:15px;">
+                    Format: ${format.toUpperCase()} | Server: Secure
+                </p>
+            </div>
+        `;
+
+        // Attach Click Listener to the new button
+        document.getElementById('dl-action-btn').onclick = () => downloadInternal(finalDownloadLink, filename);
+
+    } catch (error) {
+        console.error(error);
+        resultDiv.innerHTML = `
+            <div style="color: #e74c3c; text-align:center; padding:15px; background:rgba(231, 76, 60, 0.1); border-radius:10px;">
+                <p><strong>Connection Failed</strong></p>
+                <p style="font-size:0.85rem; margin-top:5px;">${error.message}</p>
+                <p style="font-size:0.75rem; margin-top:10px; opacity:0.8;">Tip: Verify your API Key and Host in app.js</p>
+            </div>
+        `;
+    }
 }
