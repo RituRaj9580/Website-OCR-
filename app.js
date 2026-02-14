@@ -188,7 +188,7 @@ async function processDownload() {
         else {
             // NOTE: The endpoint '/v1/social/download' is common for "Social Download All In One"
             // If you use a different API, change this URL end part (e.g., to '/download' or '/all')
-            const response = await fetch(`https://${apiHost}/v1/social/download?url=${encodeURIComponent(url)}`, {
+            const response = await fetch(`https://${9976d8edafmsha1ead5d9213a772p192695jsn85fa88d4874d}/v1/social/download?url=${encodeURIComponent(url)}`, {
                 method: 'GET',
                 headers: {
                     'X-RapidAPI-Key': apiKey,
@@ -236,3 +236,4 @@ async function processDownload() {
         `;
     }
 }
+
