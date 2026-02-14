@@ -4,7 +4,7 @@
 function updateQualityOptions() {
     const format = document.getElementById('media-format').value;
     const qualitySelect = document.getElementById('media-quality');
-    qualitySelect.innerHTML = ''; // Clear existing options
+    qualitySelect.innerHTML = ''; 
 
     let options = [];
     if (format === 'video') {
@@ -16,7 +16,6 @@ function updateQualityOptions() {
             { val: '360p', text: 'Data Saver (360p)' }
         ];
     } else {
-        // Audio Bitrates
         options = [
             { val: '320kbps', text: 'High Quality (320kbps)' },
             { val: '192kbps', text: 'Standard (192kbps)' },
@@ -32,7 +31,6 @@ function updateQualityOptions() {
     });
 }
 
-// Initialize options on load
 window.onload = function() {
     updateQualityOptions();
 };
@@ -51,28 +49,24 @@ async function processImage() {
     const fileInput = document.getElementById('image-input');
     const file = fileInput.files[0];
 
-    // 1. Validation
     if (!file) {
         alert("Please select an image first.");
         return;
     }
 
-    // 2. UI Updates (Show Progress)
     extractBtn.disabled = true;
     progressContainer.style.display = 'block';
     progressBar.style.width = '0%';
     statusText.innerText = "Initializing Engine...";
-    textArea.value = ""; // Clear previous text
+    textArea.value = "";
 
     try {
-        // 3. Tesseract Processing
         await Tesseract.recognize(
             file,
             'eng',
             {
                 logger: m => {
                     if (m.status === 'recognizing text') {
-                        // Update the Visual Progress Bar
                         const pct = Math.round(m.progress * 100);
                         progressBar.style.width = pct + '%';
                         statusText.innerText = `Scanning Document: ${pct}%`;
@@ -82,17 +76,14 @@ async function processImage() {
                 }
             }
         ).then(({ data: { text } }) => {
-            // 4. Success
             textArea.value = text;
             statusText.innerText = "Extraction Complete!";
             progressBar.style.width = '100%';
         });
-
     } catch (err) {
-        // 5. Error Handling
         console.error(err);
         statusText.innerText = "Error: Could not process image.";
-        progressBar.style.backgroundColor = "#ff4444"; // Red for error
+        progressBar.style.backgroundColor = "#ff4444";
     } finally {
         extractBtn.disabled = false;
     }
@@ -110,81 +101,113 @@ function generateDocument() {
         return;
     }
 
-    // Initialize jsPDF
     const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({
-        orientation: 'p', // Portrait
-        unit: 'mm',
-        format: 'a4'
-    });
+    const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
 
-    // Set Font
     doc.setFont("helvetica", "normal");
     doc.setFontSize(12);
 
-    // Text Wrapping
-    // A4 width is 210mm. We leave 15mm margin on each side (210 - 30 = 180mm).
     const maxLineWidth = 180; 
     const splitText = doc.splitTextToSize(text, maxLineWidth);
 
-    // Add text to document (x: 15, y: 15)
     doc.text(splitText, 15, 15);
-
-    // Save
     doc.save("extracted_document.pdf");
 }
 
 
 // ==========================================
-//  LOGIC 3: MEDIA DOWNLOADER (Video/Audio)
+//  LOGIC 3: FIXED MEDIA DOWNLOADER
 // ==========================================
+
+// Helper function to FORCE download instead of playing
+async function forceDownload(url, filename) {
+    try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error("Network response was not ok");
+        
+        // Convert the file to a "Blob" (Binary Object)
+        const blob = await response.blob();
+        
+        // Create a temporary invisible link to trigger the "Save As" dialog
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        return true;
+    } catch (error) {
+        console.error("Download failed:", error);
+        // Fallback: Just open the link if the force download fails (e.g. CORS error)
+        window.open(url, '_blank');
+        return false;
+    }
+}
+
 function processDownload() {
     const url = document.getElementById('video-url').value;
     const format = document.getElementById('media-format').value;
-    const quality = document.getElementById('media-quality').value;
     const resultDiv = document.getElementById('download-result');
 
     if (!url) {
-        alert("Please paste a video URL.");
+        alert("Please paste a URL.");
         return;
     }
 
-    // Show Loading State
+    // UI: Show loading
     resultDiv.style.display = 'block';
-    resultDiv.innerHTML = `<p style="color:#666; text-align:center;">Analysing link for <strong>${format.toUpperCase()} (${quality})</strong>...</p>`;
+    resultDiv.innerHTML = `<p style="color:#666; text-align:center;">Analyzing link...</p>`;
 
     setTimeout(() => {
-        const isDirectFile = url.match(/\.(mp4|webm|ogg|mov|mp3)$/i);
+        // 1. Check if it's a Direct File (mp4, mp3, etc)
+        const isDirectFile = url.match(/\.(mp4|webm|ogg|mov|mp3|wav)$/i);
         
-        let contentHtml = '';
+        // 2. Check if it's YouTube/Social
+        const isSocial = url.includes("youtube.com") || url.includes("youtu.be") || url.includes("instagram.com") || url.includes("facebook.com");
 
         if (isDirectFile) {
-            // Scenario A: Direct File Link
-            contentHtml = `
+            // == METHOD A: DIRECT DOWNLOAD ==
+            // We use the 'onclick' to trigger our special forceDownload function
+            const fileName = `downloaded_media.${format === 'video' ? 'mp4' : 'mp3'}`;
+            
+            resultDiv.innerHTML = `
                 <div style="text-align:center;">
-                    <p style="color: var(--success); font-weight:bold; margin-bottom:10px;">✔ File Found!</p>
-                    <a href="${url}" download class="btn-success" style="display:inline-block; padding:12px 25px; color:white; text-decoration:none; border-radius:8px; font-weight:600;">
-                        Download ${format.toUpperCase()} Now
+                    <p style="color: var(--success); font-weight:bold; margin-bottom:10px;">✔ File Ready!</p>
+                    <button id="real-dl-btn" class="btn-success" style="width: auto; padding: 12px 30px;">
+                        Save to Device 
+                    </button>
+                    <p style="font-size:0.8rem; margin-top:10px; color:#666;">Format: ${format.toUpperCase()}</p>
+                </div>
+            `;
+            
+            // Attach the click event to the new button
+            document.getElementById('real-dl-btn').onclick = function() {
+                this.innerText = "Downloading...";
+                forceDownload(url, fileName);
+            };
+
+        } else if (isSocial) {
+            // == METHOD B: SOCIAL MEDIA ==
+            // Redirect to a service that can handle encryption
+            resultDiv.innerHTML = `
+                <div style="background: rgba(255,255,255,0.7); padding: 20px; border-radius: 12px; border: 1px solid #eee; text-align:center;">
+                    <h3 style="color: var(--primary); font-size: 1.1rem;">Social Media Detected</h3>
+                    <p style="font-size: 0.9rem; margin-bottom: 15px;">Browsers cannot directly download YouTube/Instagram links without a server.</p>
+                    
+                    <a href="https://ssyoutube.com/" target="_blank" class="btn-success" style="text-decoration: none; display: inline-block; padding: 12px 20px; color: white; border-radius: 10px;">
+                        Use External Downloader
                     </a>
                 </div>
             `;
         } else {
-            // Scenario B: Social Media Link (Simulation)
-            contentHtml = `
-                <div style="background: rgba(255,255,255,0.7); padding: 20px; border-radius: 12px; border: 1px solid #eee; text-align:center;">
-                    <h3 style="color: var(--primary); margin-bottom: 10px;">Ready to Convert</h3>
-                    <p style="margin-bottom:5px;"><strong>Format:</strong> ${format.toUpperCase()}</p>
-                    <p style="margin-bottom:15px;"><strong>Quality:</strong> ${quality}</p>
-                    
-                    <a href="${url}" target="_blank" style="background: var(--primary); color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight:600;">
-                        Open Source Link
-                    </a>
-                    <p style="font-size: 0.75rem; color: #666; margin-top: 15px;">
-                        *Direct server-side download requires a backend API key.
-                    </p>
+            // == METHOD C: UNKNOWN LINK ==
+            resultDiv.innerHTML = `
+                <div style="text-align:center;">
+                    <p>Link type unknown. Trying direct access...</p>
+                    <a href="${url}" target="_blank" download>Open Link</a>
                 </div>
             `;
         }
-        resultDiv.innerHTML = contentHtml;
-    }, 1500);
+    }, 1000);
 }
