@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ToolSuite: OCR & Media Downloader</title>
+    
+    <link rel="stylesheet" href="styles.css">
+    
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body>
+
+    <header>
+        <h1>Smart ToolSuite</h1>
+        <p>Advanced OCR & Multi-Format Media Downloader</p>
+    </header>
+
+    <div class="container">
+        
+        <div class="card">
+            <h2>📷 Image to Document (OCR)</h2>
+            <div class="form-group">
+                <label>Upload Image</label>
+                <input type="file" id="image-input" accept="image/*">
+            </div>
+            
+            <div id="progress-container">
+                <div id="progress-bar"></div>
+            </div>
+            <span id="status-text"></span>
+
+            <button onclick="processImage()" id="extract-btn">Extract Text</button>
+
+            <div style="margin-top: 25px;">
+                <label for="detected-text">Editable Text Output</label>
+                <textarea id="detected-text" placeholder="Your extracted text will appear here. You can edit it before saving."></textarea>
+                <button onclick="generateDocument()" class="btn-success">Download as A4 PDF</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>🎬 Universal Media Downloader</h2>
+            
+            <div class="form-group">
+                <label>Paste Video Link</label>
+                <input type="text" id="video-url" placeholder="https://www.youtube.com/watch?v=...">
+            </div>
+
+            <div class="settings-grid">
+                <div class="form-group">
+                    <label>Format</label>
+                    <select id="media-format" onchange="updateQualityOptions()">
+                        <option value="video">Video (MP4)</option>
+                        <option value="audio">Audio (MP3)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Quality / Resolution</label>
+                    <select id="media-quality">
+                        </select>
+                </div>
+            </div>
+
+            <button onclick="processDownload()">Process Link</button>
+            
+            <div id="download-result">
+                </div>
+        </div>
+
+    </div>
+
+    <footer>
+        Developed by <strong>its___ritu.life</strong>
+    </footer>
+
+    <script src="app.js"></script>
+
+</body>
+</html>
