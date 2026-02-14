@@ -2,8 +2,9 @@
 //  CONFIG: API SETTINGS
 // ==========================================
 const apiKey = '69902edf9746ebaf72438601'; // Your Key
-// 👇 REPLACE THIS HOST if you subscribed to a different service on RapidAPI
-const apiHost = 'social-downloader-go.p.rapidapi.com'; 
+
+// 👇 CHECK THIS: If downloads fail, replace this with the host from your RapidAPI dashboard
+const apiHost = 'social-download-all-in-one.p.rapidapi.com'; 
 
 // ==========================================
 //  INIT: POPULATE OPTIONS
@@ -16,7 +17,7 @@ function updateQualityOptions() {
     let options = [];
     if (format === 'video') {
         options = [
-            { val: '720', text: 'Best Available (Auto)' }, // Most APIs auto-select best
+            { val: '720', text: 'Best Available (Auto)' }, 
             { val: '480', text: 'Standard (480p)' },
             { val: '360', text: 'Data Saver (360p)' }
         ];
@@ -185,7 +186,9 @@ async function processDownload() {
         } 
         // STRATEGY 2: Use API for Social Media
         else {
-            const response = await fetch(`https://${apiHost}/check?url=${encodeURIComponent(url)}`, {
+            // NOTE: The endpoint '/v1/social/download' is common for "Social Download All In One"
+            // If you use a different API, change this URL end part (e.g., to '/download' or '/all')
+            const response = await fetch(`https://${apiHost}/v1/social/download?url=${encodeURIComponent(url)}`, {
                 method: 'GET',
                 headers: {
                     'X-RapidAPI-Key': apiKey,
@@ -198,7 +201,7 @@ async function processDownload() {
             const data = await response.json();
             
             // Try to find the link in common API structures
-            finalDownloadLink = data.link || data.url || data.video_url || (data.data ? data.data[0].url : null);
+            finalDownloadLink = data.url || data.link || data.video_url || (data.data ? data.data[0].url : null);
             
             if (!finalDownloadLink) throw new Error("No download link found in API response.");
         }
@@ -228,7 +231,7 @@ async function processDownload() {
             <div style="color: #e74c3c; text-align:center; padding:15px; background:rgba(231, 76, 60, 0.1); border-radius:10px;">
                 <p><strong>Connection Failed</strong></p>
                 <p style="font-size:0.85rem; margin-top:5px;">${error.message}</p>
-                <p style="font-size:0.75rem; margin-top:10px; opacity:0.8;">Tip: Verify your API Key and Host in app.js</p>
+                <p style="font-size:0.75rem; margin-top:10px; opacity:0.8;">Tip: Verify your 'apiHost' in app.js matches your subscription.</p>
             </div>
         `;
     }
